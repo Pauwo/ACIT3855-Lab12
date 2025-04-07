@@ -92,6 +92,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      receiver:
+        condition: service_started
     volumes:
       - ./config:/app/config
       - ./logs:/app/logs

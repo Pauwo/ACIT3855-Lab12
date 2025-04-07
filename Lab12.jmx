@@ -32,7 +32,7 @@
           <stringProp name="variableNames">flight_id,flight_status,flight_duration,flight_departure</stringProp>
         </CSVDataSet>
         <hashTree/>
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Flight Schedule Request">
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Flight Schedule Request" enabled="true">
           <stringProp name="HTTPSampler.domain">20.55.37.190</stringProp>
           <stringProp name="HTTPSampler.path">/receiver/flights/schedule</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
