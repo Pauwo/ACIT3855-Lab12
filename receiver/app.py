@@ -22,7 +22,7 @@ with open("./config/test/receiver/log_conf.yml", "r") as f:
 logger = logging.getLogger('basicLogger')
 
 kafka_config = app_config['events']
-client = KafkaClient(hosts=f"{kafka_config['hostname']}:{kafka_config['port']}")
+# client = KafkaClient(hosts=f"{kafka_config['hostname']}:{kafka_config['port']}")
 # topic = client.topics[str.encode(kafka_config['topic'])]
 # producer = topic.get_sync_producer()
 
