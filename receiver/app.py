@@ -23,8 +23,23 @@ logger = logging.getLogger('basicLogger')
 
 kafka_config = app_config['events']
 client = KafkaClient(hosts=f"{kafka_config['hostname']}:{kafka_config['port']}")
-topic = client.topics[str.encode(kafka_config['topic'])]
-producer = topic.get_sync_producer()
+# topic = client.topics[str.encode(kafka_config['topic'])]
+# producer = topic.get_sync_producer()
+
+def get_kafka_producer():
+    while True:
+        try:
+            client = KafkaClient(hosts=f"{kafka_config['hostname']}:{kafka_config['port']}")
+            topic = client.topics[str.encode(kafka_config['topic'])]
+            producer = topic.get_sync_producer()
+            logger.info("Kafka producer connected successfully.")
+            return producer
+        except Exception as e:
+            logger.error(f"Kafka connection error: {e}, retrying...")
+            time.sleep(2)
+
+producer = get_kafka_producer()
+
 
 # Function for the flight schedule event
 def report_flight_schedules(body):

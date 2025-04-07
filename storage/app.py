@@ -50,19 +50,34 @@ def process_messages():
     hostname = f"{kafka_config['hostname']}:{kafka_config['port']}"
     topic_name = kafka_config['topic']
     
-    # Initialize Kafka client
-    client = KafkaClient(hosts=hostname)
-    topic = client.topics[str.encode(topic_name)]
+    # # Initialize Kafka client
+    # client = KafkaClient(hosts=hostname)
+    # topic = client.topics[str.encode(topic_name)]
     
-    # Create a consume on a consumer group, that only reads new messages
-    # (uncommitted messages) when the service re-starts (i.e., it doesn't
-    # read all the old messages from the history in the message queue).
-    # Configure consumer
-    consumer = topic.get_simple_consumer(
-        consumer_group=b'event_group',
-        reset_offset_on_start=False,
-        auto_offset_reset=OffsetType.LATEST
-    )
+    # # Create a consume on a consumer group, that only reads new messages
+    # # (uncommitted messages) when the service re-starts (i.e., it doesn't
+    # # read all the old messages from the history in the message queue).
+    # # Configure consumer
+    # consumer = topic.get_simple_consumer(
+    #     consumer_group=b'event_group',
+    #     reset_offset_on_start=False,
+    #     auto_offset_reset=OffsetType.LATEST
+    # )
+    
+    while True:
+        try:
+            client = KafkaClient(hosts=hostname)
+            topic = client.topics[str.encode(topic_name)]
+            consumer = topic.get_simple_consumer(
+                consumer_group=b'event_group',
+                reset_offset_on_start=False,
+                auto_offset_reset=OffsetType.LATEST
+            )
+            logger.info("Kafka consumer connected successfully.")
+            break
+        except Exception as e:
+            logger.error(f"Kafka consumer connection error: {e}, retrying in 2 sec...")
+            time.sleep(2)
     
     # This is blocking - it will wait for a new message
     for msg in consumer:
