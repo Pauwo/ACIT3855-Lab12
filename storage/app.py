@@ -35,7 +35,7 @@ db_name = app_config['datastore']['db']
 DATABASE_URL = f"mysql://{db_user}:{db_password}@{db_hostname}:{db_port}/{db_name}"
 
 # Database setup
-engine = create_engine(DATABASE_URL, pool_size=10, pool_pre_ping=True, pool_recycle=3600)
+engine = create_engine(DATABASE_URL, pool_size=100, pool_pre_ping=True, pool_recycle=3600)
 Base.metadata.create_all(engine)  # Ensure tables exist
 
 
@@ -63,7 +63,7 @@ def process_messages():
     #     reset_offset_on_start=False,
     #     auto_offset_reset=OffsetType.LATEST
     # )
-    
+
     while True:
         try:
             client = KafkaClient(hosts=hostname)
