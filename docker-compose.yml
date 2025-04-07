@@ -9,7 +9,8 @@ services:
     # ports:
     #   - "8080:8080"
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     volumes:
       - ./config:/app/config
       - ./logs:/app/logs
@@ -28,7 +29,8 @@ services:
     # ports:
     #   - "8100:8100"
     depends_on:
-      - storage
+      storage:
+        condition: service_started
     volumes:
       - ./config:/app/config
       - ./logs:/app/logs
@@ -62,12 +64,12 @@ services:
       MYSQL_DATABASE: 'skibididb'      
       MYSQL_USER: 'skibidi'
       MYSQL_PASSWORD: 'Passw0rd'
-    # healthcheck:
-    #   test: ["CMD", "mysql", "-u", "skibidi", "-pPassw0rd", "-e", "SHOW DATABASES;"]
-    #   interval: 30s
-    #   retries: 5
-    #   start_period: 10s
-    #   timeout: 10s
+    healthcheck:
+      test: ["CMD", "mysql", "-u", "skibidi", "-pPassw0rd", "-e", "SHOW DATABASES;"]
+      interval: 15s
+      retries: 5
+      start_period: 10s
+      timeout: 10s
     # ports:
     #   - '3306:3306'
     volumes:
@@ -86,8 +88,10 @@ services:
     environment:
       CORS_ALLOW_ALL: no # Change to yes if you want to allow all requests
     depends_on:
-      - db
-      - kafka
+      db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
     volumes:
       - ./config:/app/config
       - ./logs:/app/logs
@@ -118,6 +122,12 @@ services:
       KAFKA_ADVERTISED_LISTENERS: INSIDE://kafka:29092,OUTSIDE://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+    healthcheck:
+      test: nc -z localhost 29092 || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     volumes:
 #      - ./data/kafka:/var/lib/kafka/data  # Bind mount for Kafka
       - ./data/kafka:/kafka
