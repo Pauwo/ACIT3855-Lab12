@@ -40,6 +40,16 @@ def get_kafka_producer():
 
 producer = get_kafka_producer()
 
+def safe_produce(message):
+    global producer
+    while True:
+        try:
+            producer.produce(message.encode('utf-8'))
+            return
+        except Exception as e:
+            logger.error(f"Error producing message: {e}, reconnecting producer...")
+            producer = get_kafka_producer()
+
 
 # Function for the flight schedule event
 def report_flight_schedules(body):
@@ -56,7 +66,7 @@ def report_flight_schedules(body):
     msg_str = json.dumps(msg)
     
     # Send to Kafka
-    producer.produce(msg_str.encode('utf-8'))
+    safe_produce(msg_str)
     logger.info(f"Produced flight_schedule event (trace_id: {trace_id})")
 
     return NoContent, 201 
@@ -76,7 +86,7 @@ def record_passenger_checkin(body):
     msg_str = json.dumps(msg)
     
     # Send to Kafka
-    producer.produce(msg_str.encode('utf-8'))
+    safe_produce(msg_str)
     logger.info(f"Produced passenger_checkin event (trace_id: {trace_id})")
 
     return NoContent, 201
