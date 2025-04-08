@@ -11,6 +11,8 @@ import time
 from threading import Thread
 from pykafka import KafkaClient
 from pykafka.common import OffsetType
+from pykafka.exceptions import KafkaException
+import random
 
 # Load logging configuration from log_conf.yml
 with open("./config/test/storage/log_conf.yml", "r") as f:
@@ -43,12 +45,78 @@ def make_session():
     return sessionmaker(bind=engine)()
 
 
+class KafkaWrapper:
+    def __init__(self, hostname, topic):
+        self.hostname = hostname
+        self.topic = topic
+        self.client = None
+        self.consumer = None
+        self.connect()
+
+    def connect(self):
+        while True:
+            logger.debug("Trying to connect to Kafka...")
+            if self.make_client():
+                if self.make_consumer():
+                    break
+            time.sleep(random.randint(500, 1500) / 1000)
+
+    def make_client(self):
+        if self.client is not None:
+            return True
+        try:
+            self.client = KafkaClient(hosts=self.hostname)
+            logger.info("Kafka client created!")
+            return True
+        except KafkaException as e:
+            msg = f"Kafka error when making client: {e}"
+            logger.warning(msg)
+            self.client = None
+            self.consumer = None
+            return False
+
+    def make_consumer(self):
+        if self.consumer is not None:
+            return True
+        if self.client is None:
+            return False
+        try:
+            topic = self.client.topics[self.topic]
+            self.consumer = topic.get_simple_consumer(
+                consumer_group=b'event_group',
+                reset_offset_on_start=False,
+                auto_offset_reset=OffsetType.LATEST
+            )
+            return True
+        except KafkaException as e:
+            msg = f"Make error when making consumer: {e}"
+            logger.warning(msg)
+            self.client = None
+            self.consumer = None
+            return False
+
+    def messages(self):
+        if self.consumer is None:
+            self.connect()
+        while True:
+            try:
+                for msg in self.consumer:
+                    yield msg
+            except KafkaException as e:
+                msg = f"Kafka issue in consumer: {e}"
+                logger.warning(msg)
+                self.client = None
+                self.consumer = None
+                self.connect()
+
+
 def process_messages():
     """Process event messages from Kafka"""
     # Load Kafka config
     kafka_config = app_config['events']
     hostname = f"{kafka_config['hostname']}:{kafka_config['port']}"
     topic_name = kafka_config['topic']
+    kafka_wrapper = KafkaWrapper(hostname, topic_name)
     
     # # Initialize Kafka client
     # client = KafkaClient(hosts=hostname)
@@ -64,78 +132,61 @@ def process_messages():
     #     auto_offset_reset=OffsetType.LATEST
     # )
 
-    while True:
-        try:
-            client = KafkaClient(hosts=hostname)
-            topic = client.topics[str.encode(topic_name)]
-            consumer = topic.get_simple_consumer(
-                consumer_group=b'event_group',
-                reset_offset_on_start=False,
-                auto_offset_reset=OffsetType.LATEST
-            )
-            logger.info("Kafka consumer connected successfully.")
     
-            for msg in consumer:
+    for msg in kafka_wrapper.messages():
+        try:
+            # Decode message
+            msg_str = msg.value.decode('utf-8')
+            msg = json.loads(msg_str)
+            logger.info(f"Message: {msg}")
+            
+            payload = msg["payload"]
+            
+            # Handle different event types
+            if msg["type"] == "flight_schedule":
+                # Store flight schedule
+                session = make_session()
                 try:
-                    # Decode message
-                    msg_str = msg.value.decode('utf-8')
-                    msg = json.loads(msg_str)
-                    logger.info(f"Message: {msg}")
-                    
-                    payload = msg["payload"]
-                    
-                    # Handle different event types
-                    if msg["type"] == "flight_schedule":
-                        # Store flight schedule
-                        session = make_session()
-                        try:
-                            flight_departure = datetime.fromisoformat(payload["flight_departure"])
-                            event = FlightSchedule(
-                                flight_id=payload["flight_id"],
-                                flight_status=payload["flight_status"],
-                                flight_duration=payload["flight_duration"],
-                                flight_departure=flight_departure,
-                                trace_id=payload["trace_id"]
-                            )
-                            session.add(event)
-                            session.commit()
-                            logger.debug(f"Stored flight_schedule: {payload['trace_id']}")
-                        except Exception as e:
-                            session.rollback()
-                            logger.error(f"DB error: {str(e)}")
-                        finally:
-                            session.close()
-                            
-                    elif msg["type"] == "passenger_checkin":
-                        # Store passenger checkin
-                        session = make_session()
-                        try:
-                            checkin_timestamp = datetime.fromisoformat(payload["checkin_timestamp"])
-                            event = PassengerCheckin(
-                                checkin_id=payload["checkin_id"],
-                                flight_id=payload["flight_id"],
-                                luggage_weight=payload["luggage_weight"],
-                                checkin_timestamp=checkin_timestamp,
-                                trace_id=payload["trace_id"]
-                            )
-                            session.add(event)
-                            session.commit()
-                            logger.debug(f"Stored passenger_checkin: {payload['trace_id']}")
-                        except Exception as e:
-                            session.rollback()
-                            logger.error(f"DB error: {str(e)}")
-                        finally:
-                            session.close()
-                            
-                    # Commit offset
-                    consumer.commit_offsets()
-                    
+                    flight_departure = datetime.fromisoformat(payload["flight_departure"])
+                    event = FlightSchedule(
+                        flight_id=payload["flight_id"],
+                        flight_status=payload["flight_status"],
+                        flight_duration=payload["flight_duration"],
+                        flight_departure=flight_departure,
+                        trace_id=payload["trace_id"]
+                    )
+                    session.add(event)
+                    session.commit()
+                    logger.debug(f"Stored flight_schedule: {payload['trace_id']}")
                 except Exception as e:
-                    logger.error(f"Failed to process message: {str(e)}")
-
+                    session.rollback()
+                    logger.error(f"DB error: {str(e)}")
+                finally:
+                    session.close()
+                    
+            elif msg["type"] == "passenger_checkin":
+                # Store passenger checkin
+                session = make_session()
+                try:
+                    checkin_timestamp = datetime.fromisoformat(payload["checkin_timestamp"])
+                    event = PassengerCheckin(
+                        checkin_id=payload["checkin_id"],
+                        flight_id=payload["flight_id"],
+                        luggage_weight=payload["luggage_weight"],
+                        checkin_timestamp=checkin_timestamp,
+                        trace_id=payload["trace_id"]
+                    )
+                    session.add(event)
+                    session.commit()
+                    logger.debug(f"Stored passenger_checkin: {payload['trace_id']}")
+                except Exception as e:
+                    session.rollback()
+                    logger.error(f"DB error: {str(e)}")
+                finally:
+                    session.close()
+            
         except Exception as e:
-            logger.error(f"Kafka consumer connection error: {e}, retrying in 2 sec...")
-            time.sleep(2)
+            logger.error(f"Failed to process message: {str(e)}")
 
 
 def setup_kafka_thread():
