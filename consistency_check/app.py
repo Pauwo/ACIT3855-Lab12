@@ -93,7 +93,8 @@ def run_consistency_checks():
             if str(event.get("trace_id")) not in storage_trace_ids:
                 not_in_db.append({
                     "event_id": to_int(event.get("id")),
-                    "trace_id": to_int(event.get("trace_id"))
+                    "trace_id": to_int(event.get("trace_id")),
+                    "type": event.get("type", "unknown")
                 })
         
         not_in_queue = []
@@ -101,7 +102,8 @@ def run_consistency_checks():
             if str(event.get("trace_id")) not in analyzer_trace_ids:
                 not_in_queue.append({
                     "event_id": to_int(event.get("event_id")),
-                    "trace_id": to_int(event.get("trace_id"))
+                    "trace_id": to_int(event.get("trace_id")),
+                    "type": event.get("type", "unknown")
                 })
         
         result = {
